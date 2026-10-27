@@ -1,0 +1,11 @@
+__pycache__/
+*.xlsx
+deleted.txt
+resumes/contact.json
+resumes/html/
+resumes/UAE/
+resumes/EU/
+resumes/India/
+resumes/archive/
+resumes/tailored/
+outreach/
