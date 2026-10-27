@@ -1,0 +1,32 @@
+[
+ {
+  "country": "UAE",
+  "city": "Dubai",
+  "company": "Ziina",
+  "title": "Backend Engineer",
+  "url": "https://job-boards.eu.greenhouse.io/ziina/jobs/4628538101",
+  "source": "Greenhouse",
+  "posted": "",
+  "years_required": "3+",
+  "key_skills": "TypeScript, Node.js, NestJS, GraphQL, Kafka, PostgreSQL, Kubernetes",
+  "fit_notes": "UAE payments fintech on TS/Node/Postgres; matches her ShareMatch payments and webhooks work.",
+  "fit": 5,
+  "priority": 1,
+  "sponsorship": "Not needed (UAE)"
+ },
+ {
+  "country": "UAE",
+  "city": "Dubai",
+  "company": "Ziina",
+  "title": "Full-Stack Engineer",
+  "url": "https://job-boards.eu.greenhouse.io/ziina/jobs/4701132101",
+  "source": "Greenhouse",
+  "posted": "",
+  "years_required": "4+",
+  "key_skills": "React, Next.js, Node.js, PostgreSQL, REST APIs",
+  "fit_notes": "Exact stack match (Next.js, Node, Postgres, payments APIs); 4+ asked is a slight stretch.",
+  "fit": 5,
+  "priority": 1,
+  "sponsorship": "Not needed (UAE)"
+ }
+]
