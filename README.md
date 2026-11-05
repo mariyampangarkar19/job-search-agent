@@ -1,66 +1,66 @@
-# Job Search Agent
+# Trove
 
-An AI agent that runs my job search across six markets (UAE, Germany, Netherlands, Ireland, Luxembourg and India). Three times every weekday it finds new roles that fit my profile, checks that each link is live on the company's own careers site, picks the right resume for the role, and adds it to a Google Sheet. It also reads my inbox to keep application statuses up to date.
+A scheduled matching pipeline that scores job postings against a skills profile, checks that every posting is still live, and hands a person a short, ranked list to choose from. It never applies to anything: a human reads every shortlisted role and decides.
 
-I built it while job hunting in October 2026, because applying well takes more time than finding roles. Most job boards are full of expired or duplicate postings, so the agent only adds a role after it has confirmed the posting itself.
+I built it in October 2026 for my own job search across six markets (UAE, Germany, Netherlands, Ireland, Luxembourg and India). The problem it solves is noise, not volume: most job boards are full of expired, duplicate or poorly matched postings, so Trove filters hard and keeps at most 20 roles per run.
 
-> **Status:** in daily use since 18 Oct 2026. About 230 roles shortlisted and about 60 applications sent through it so far.
+> **Status:** in daily use since 18 Oct 2026.
 
-## What it does
+## How it works
 
 | Step | How |
 |---|---|
-| **Find roles** | Parallel sub-agents search company career pages and ATS boards (Greenhouse, Lever, Ashby, Workday, Workable) per market, following the rules in [`docs/SEARCH_RULES.md`](docs/SEARCH_RULES.md). |
-| **Score fit** | Each role gets a 1–5 fit score based on stack overlap, years asked and domain. Only 4s and 5s are kept, and senior titles or 5+ year asks are dropped. |
-| **Verify links** | Before a role is added, its posting is re-checked through the ATS's own API (for example Greenhouse `boards-api`, Lever `postings`, Ashby `posting-api`). Dead or redirected links never reach the sheet. |
-| **Route a resume** | [`tools/tracker.py`](tools/tracker.py) maps the job title to one of three resume versions (AI Engineer, Software Engineer, Technical Analyst) and flags JD keywords missing from my resume. |
-| **Track** | Rows go to a local Excel mirror and to a Google Sheet that I edit by hand. A dashboard tab shows response rate by market and by resume. |
-| **Inbox sync** | A read-only Gmail pass marks confirmations, assessments, interviews and rejections in the sheet. |
-| **Report** | A short summary after each run with the top 3 roles, and a weekly review every Friday. |
+| **Source** | Parallel LLM sub-agents search company career pages and ATS boards (Greenhouse, Lever, Ashby, Workday, Workable) per market, following the rules in [`docs/SEARCH_RULES.md`](docs/SEARCH_RULES.md). |
+| **Score** | Each role gets a 1–5 fit score from a rubric: stack overlap, years asked and domain. Only 4s and 5s are kept; senior titles and 5+ year asks are dropped. |
+| **Verify** | Each posting is re-checked through the ATS's own API (for example Greenhouse `boards-api`, Lever `postings`, Ashby `posting-api`). Dead or redirected links never reach the list. |
+| **Route** | [`tools/tracker.py`](tools/tracker.py) maps the job title to the best-matching resume version and flags keywords from the posting that are missing from it. |
+| **Track** | Rows go to a Google Sheet the person edits by hand, deduplicated against everything seen before. A read-only inbox pass keeps statuses up to date. |
+| **Report** | A short summary after each run with the top 3 roles, and a weekly review. |
 
 ```mermaid
 flowchart LR
-    T[Scheduler<br/>3x per weekday] --> O[Orchestrator agent]
-    O --> A1[Sub-agent: UAE]
-    O --> A2[Sub-agent: EU]
-    O --> A3[Sub-agent: India]
-    A1 & A2 & A3 --> V[Link verification<br/>ATS APIs]
-    V --> TR[tracker.py<br/>dedupe, fit, resume routing]
+    T[Scheduler<br/>3x per weekday] --> O[Orchestrator]
+    O --> A1[Sub-agent: market 1]
+    O --> A2[Sub-agent: market 2]
+    O --> A3[Sub-agent: market 3]
+    A1 & A2 & A3 --> S[Rubric scoring]
+    S --> V[Live-posting check<br/>ATS APIs]
+    V --> TR[tracker.py<br/>dedupe + routing]
     TR --> GS[(Google Sheet)]
-    G[Gmail, read only] --> GS
-    GS --> R[Run summary + Friday review]
+    GS --> H[Person reviews and decides]
 ```
 
-## Resumes from one source
+## Design choices
 
-[`resumes/build_resumes.py`](resumes/build_resumes.py) keeps every fact about my experience in one place and builds three role versions for three markets (nine PDFs). Each version only changes the order and emphasis of the same bullets, and the market changes only the status line. [`resumes/render.js`](resumes/render.js) uses Playwright to print each one to A4, shrinking the font until it fits on one page.
+- **A human makes every decision.** Trove ranks and verifies; it has no ability to submit applications or send messages.
+- **Verification beats search.** The first version trusted aggregators and many roles were already closed. Checking every posting against the ATS API fixed that.
+- **Rules live in a plain file.** The rubric and filters are one Markdown file, so behaviour changes without code changes and every run is consistent.
+- **The profile is config.** The same engine can match any skills profile to any set of postings.
+
+## Evals (in progress)
+
+The tracker holds about 95 real decisions where a person chose to act on a shortlisted role or skip it. That makes a labelled dataset for measuring the ranking:
+
+- Precision of the top 20 against roles the person chose
+- Rank correlation between fit score and those choices
+- Tracked over time, so every rubric change shows whether it helped
 
 ## Run it yourself
 
 ```bash
 pip install -r requirements.txt
-python3 tools/tracker.py create                          # new Job_Tracker.xlsx
+python3 tools/tracker.py create                          # new tracker workbook
 python3 tools/tracker.py add examples/roles.example.json # add roles (skips duplicates)
 cd tools && python3 sheet_rows.py 1 2                    # rows in Google Sheet layout
 ```
 
-The other tracker commands are `expire <ids>`, `remove <ids>` and `relink <file.json>`.
+Other tracker commands: `expire <ids>`, `remove <ids>` and `relink <file.json>`.
 
-To build resumes, put your contact line in `resumes/contact.json` (gitignored) and run `python3 resumes/build_resumes.py` with Node and Playwright installed.
+`resumes/build_resumes.py` builds every resume version from one source of facts, and `resumes/render.js` prints each to a one-page A4 PDF with Playwright.
 
 ## How it was built
 
-The orchestration runs on [Claude Code](https://claude.ai/code): scheduled sessions read [`docs/AGENT_PROMPT.md`](docs/AGENT_PROMPT.md) and the search rules, spread the search across sub-agents, and use Google Sheets and Gmail connectors. I designed the workflow, the fit rubric and the rules, and iterated on them daily as results came in. Claude Code wrote most of the code under that direction.
-
-What I learned:
-- **Verification matters more than search.** The first version added roles from aggregators, and many were already closed. Checking every posting against the ATS API fixed that.
-- **Fewer resumes work better.** Eight resume versions spread my profile too thin, so I cut them to three.
-- **Plain rules files beat long prompts.** Keeping the rules in one Markdown file means each run behaves the same, and I can change the behaviour without touching code.
-
-## Roadmap
-- Response-rate analysis per resume version, to drive the next resume rewrite
-- Auto-drafted, tailored cover notes for top-fit roles (sent by me, never automatically)
-- Package the agent so others can run it with their own rules file
+Orchestration runs on scheduled [Claude Code](https://claude.ai/code) sessions that read [`docs/AGENT_PROMPT.md`](docs/AGENT_PROMPT.md) and the rules file, fan the search out to sub-agents, and use Google Sheets and Gmail connectors. I designed the workflow, the rubric and the rules and iterated on them daily from the results; Claude Code wrote most of the code under that direction.
 
 ---
-Mariyam Pangarkar · [LinkedIn](https://linkedin.com/in/mariyam-pangarkar)
+Mariyam Pangarkar · [LinkedIn](https://linkedin.com/in/mariyam-pangarkar) · [Portfolio](https://mariyampangarkar19.github.io)
